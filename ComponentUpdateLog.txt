@@ -1,0 +1,16 @@
+Last Modified Date & Time: 07/17/2019 21:35:23
+
+SPI_Platform: SPI_Platform.cydwr
+	cy_boot [v5.60] to [v5.80]
+	LIN_Dynamic [v4.0] to [v5.0]
+
+SPI_Platform: TopDesign.cysch
+	USBUART [v3.10] to [v3.20]
+
+SPI_Platform: TopDesign.cysch
+	USBUART [v3.10] to [v3.20]
+
+SPI_Platform: TopDesign.cysch
+	USBUART [v3.10] to [v3.20]
+
+

@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "*.ptjava": "java",
+        "*.strl": "matlab",
+        "project.h": "c"
+    }
+}
