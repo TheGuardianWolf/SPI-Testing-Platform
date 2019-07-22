@@ -4,4 +4,6 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+bool SPI_TxReady();
+    
 #endif /* SPI_H */

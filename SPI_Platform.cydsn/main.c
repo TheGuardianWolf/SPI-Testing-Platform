@@ -171,7 +171,7 @@ int main()
                 }
                 break;
                 case STATE_SEND_QUERY:
-                if (SPI_TxReady());
+                if (SPI_TxReady())
                 {
                     SPIM_WriteTxData(KSPI_START_BYTE);
                     SPIM_WriteTxData((uint8_t)query.queryCode);
@@ -187,7 +187,7 @@ int main()
                     USB_WriteHexChar(query.length);
                     for (uint8_t i; i < query.length; i += 1)
                     {
-                        SB_WriteHexChar(query.data[i]);
+                        USB_WriteHexChar(query.data[i]);
                     }
                     USB_Write(STRING_NEWLINE, sizeof(STRING_NEWLINE));
 

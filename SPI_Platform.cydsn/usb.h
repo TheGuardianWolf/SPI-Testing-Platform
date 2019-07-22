@@ -13,10 +13,10 @@ void USB_Read();
 
 bool USB_CanWrite();
 
-void USB_Write(uint8_t* data, uint16_t dataLength);
+void USB_Write(const char* data, uint16_t dataLength);
 
 // void USB_WriteConst(const uint8_t * data, uint16_t dataLength);
 
-void USB_WriteHexChar(uint8_t data);
+void USB_WriteHexChar(char data);
 
 #endif /* USB_H */

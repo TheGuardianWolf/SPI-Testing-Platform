@@ -48,7 +48,7 @@ bool USB_CanWrite()
     return USBUART_CDCIsReady() == 1;
 }
 
-void USB_Write(const uint8_t* data, uint16_t dataLength)
+void USB_Write(const char* data, uint16_t dataLength)
 {
     /* Service USB CDC when device is configured. */
     if (0u != USBUART_GetConfiguration())
@@ -61,7 +61,7 @@ void USB_Write(const uint8_t* data, uint16_t dataLength)
             }
 
             /* Send data back to host. */
-            USBUART_PutData(data, dataLength);
+            USBUART_PutData((uint8_t*)data, dataLength);
 
             /* If the last sent packet is exactly the maximum packet 
             *  size, it is followed by a zero-length packet to assure
@@ -89,9 +89,9 @@ void USB_Write(const uint8_t* data, uint16_t dataLength)
 //     USB_Write(constBuffer, dataLength);
 // }
 
-void USB_WriteHexChar(uint8_t data)
+void USB_WriteHexChar(char data)
 {
-    uint8_t buffer[3];
+    char buffer[3];
     sprintf(buffer, "%02X", data);
     USB_Write(buffer, 2);
 }
