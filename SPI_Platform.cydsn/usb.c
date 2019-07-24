@@ -1,6 +1,8 @@
 #include "usb.h"
 #include <project.h>
 #include <stdio.h>
+#include <string.h>
+#include "strings.h"
 
 static bool usbState = false;
 
@@ -29,7 +31,7 @@ bool USB_InitHost()
     return usbState;
 }
 
-void USB_Read(uint8_t* data, uint16_t* dataLength)
+void USB_Read(char* data, uint16_t* dataLength)
 {
     /* Service USB CDC when device is configured. */
     if (0u != USBUART_GetConfiguration())
@@ -38,9 +40,53 @@ void USB_Read(uint8_t* data, uint16_t* dataLength)
         if (0u != USBUART_DataIsReady())
         {
             /* Read received data and re-enable OUT endpoint. */
-            *dataLength = USBUART_GetAll(data);
+            *dataLength = USBUART_GetAll((uint8_t*)data);
+            
+            if (*dataLength > 0)
+            {
+                data[*dataLength] = '\0';
+                *dataLength += 1;
+            }
+            return;
         }
     }
+    *dataLength = 0;
+}
+
+void USB_ReadLine(char* data, uint16_t* dataLength)
+{
+    char buffer[USB_BUFFER_SIZE];
+    uint16_t bufferLength;
+    uint16_t trimLength;
+    bool active = false;
+    *dataLength = 0;
+    
+    do 
+    {
+        bufferLength = 0;
+        trimLength = 0;
+        USB_Read(buffer, &bufferLength);
+        if (bufferLength > 0)
+        {
+            active = true;
+            trimLength = strcspn(buffer, "\r\n") + 1;
+            if (trimLength < bufferLength)
+            {
+                buffer[trimLength - 1] = '\0';
+                bufferLength = trimLength;
+                active = false;
+            }
+            
+            if (*dataLength > 0)
+            {
+                *dataLength -= 1;
+            }
+            
+            memcpy(&data[*dataLength], buffer, bufferLength);
+            *dataLength += bufferLength;
+        }
+    } 
+    while(active);
 }
 
 bool USB_CanWrite()
@@ -61,7 +107,7 @@ void USB_Write(const char* data, uint16_t dataLength)
             }
 
             /* Send data back to host. */
-            USBUART_PutData((uint8_t*)data, dataLength);
+            USBUART_PutData((uint8_t*)data, dataLength - 1);
 
             /* If the last sent packet is exactly the maximum packet 
             *  size, it is followed by a zero-length packet to assure
@@ -82,6 +128,15 @@ void USB_Write(const char* data, uint16_t dataLength)
     }
 }
 
+void USB_WriteLine(const char* data, uint16_t dataLength)
+{
+    if (data != NULL && dataLength > 0)
+    {
+        USB_Write(data, dataLength);
+    }
+    USB_Write(STRING_NEWLINE, sizeof(STRING_NEWLINE));
+}
+
 // void USB_WriteConst(const uint8_t * data, uint16_t dataLength)
 // {
 //     uint8_t constBuffer[USB_BUFFER_SIZE];
@@ -93,5 +148,5 @@ void USB_WriteHexChar(char data)
 {
     char buffer[3];
     sprintf(buffer, "%02X", data);
-    USB_Write(buffer, 2);
+    USB_Write(buffer, 3);
 }

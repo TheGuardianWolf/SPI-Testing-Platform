@@ -52,23 +52,26 @@ static KSPI_Response_t response = {
 };
 
 static uint16_t usbRxBufferLength = 0;
-static uint8_t usbRxBuffer[USB_BUFFER_SIZE];
+static char usbRxBuffer[USB_BUFFER_SIZE];
+static bool initSuccess = false;
 
 int main()
 {    
     CyGlobalIntEnable;
 
     /* Start USBFS operation with 5-V operation. */
-    USBUART_Start(USB_DEVICE, USBUART_5V_OPERATION);
+    USBUART_Start(USB_DEVICE, USBUART_3V_OPERATION);
     SPIM_Start();
     
     for(;;)
     {
-        bool initSuccess = USB_InitHost();
-
-        if (initSuccess)
+        if (!initSuccess)
         {   
-            USB_Read(usbRxBuffer, &usbRxBufferLength);
+            initSuccess = USB_InitHost();
+        }
+        else
+        {
+            USB_ReadLine(usbRxBuffer, &usbRxBufferLength);
             State_t nextState = STATE_IDLE;
             
             switch(state)
@@ -76,7 +79,7 @@ int main()
                 case STATE_IDLE:
                 if (USB_CanWrite())
                 {
-                    USB_Write(STRING_QUERY_CODE, sizeof(STRING_QUERY_CODE));
+                    USB_WriteLine(STRING_QUERY_CODE, sizeof(STRING_QUERY_CODE));
                     nextState = STATE_GET_QUERY_CODE;
                 }
                 else
@@ -92,11 +95,12 @@ int main()
                     if (result == STR2INT_SUCCESS && queryCode == 0)
                     {
                         query.queryCode = (KSPI_QueryCode_t)queryCode;
-                        USB_Write(STRING_QUERY_SUBCODE, sizeof(STRING_QUERY_SUBCODE));
+                        USB_WriteLine(STRING_QUERY_SUBCODE, sizeof(STRING_QUERY_SUBCODE));
                         nextState = STATE_GET_QUERY_SUBCODE;
                     }
                     else
                     {
+                        USB_WriteLine(STRING_INVALID, sizeof(STRING_INVALID));
                         nextState = STATE_IDLE;
                     }
                 }
@@ -113,12 +117,13 @@ int main()
                     if (result == STR2INT_SUCCESS && querySubcode == 0)
                     {
                         query.querySubcode = (KSPI_QuerySubcode_t)querySubcode;
-                        USB_Write(STRING_QUERY_LENGTH, sizeof(STRING_QUERY_LENGTH));
+                        USB_WriteLine(STRING_QUERY_LENGTH, sizeof(STRING_QUERY_LENGTH));
                         nextState = STATE_GET_QUERY_LENGTH;
                     }
                     else
                     {
-                        USB_Write(STRING_QUERY_SUBCODE, sizeof(STRING_QUERY_SUBCODE));
+                        USB_WriteLine(STRING_INVALID, sizeof(STRING_INVALID));
+                        USB_WriteLine(STRING_QUERY_SUBCODE, sizeof(STRING_QUERY_SUBCODE));
                         nextState = STATE_GET_QUERY_SUBCODE;
                     }
                 }
@@ -138,18 +143,19 @@ int main()
 
                         if (length == 0)
                         {
-                            USB_Write(STRING_SENDING_QUERY, sizeof(STRING_SENDING_QUERY));
+                            USB_WriteLine(STRING_SENDING_QUERY, sizeof(STRING_SENDING_QUERY));
                             nextState = STATE_SEND_QUERY;
                         }
                         else
                         {
-                            USB_Write(STRING_QUERY_DATA, sizeof(STRING_QUERY_DATA));
+                            USB_WriteLine(STRING_QUERY_DATA, sizeof(STRING_QUERY_DATA));
                             nextState = STATE_GET_QUERY_DATA;
                         }
                     }
                     else
                     {
-                        USB_Write(STRING_QUERY_LENGTH, sizeof(STRING_QUERY_LENGTH));
+                        USB_WriteLine(STRING_INVALID, sizeof(STRING_INVALID));
+                        USB_WriteLine(STRING_QUERY_LENGTH, sizeof(STRING_QUERY_LENGTH));
                         nextState = STATE_GET_QUERY_LENGTH;
                     }
                 }
@@ -161,25 +167,35 @@ int main()
                 case STATE_GET_QUERY_DATA:
                 if (usbRxBufferLength > 0)
                 {
-                    memcpy(query.data, usbRxBuffer, usbRxBufferLength);
-                    USB_Write(STRING_SENDING_QUERY, sizeof(STRING_SENDING_QUERY));
-                    nextState = STATE_SEND_QUERY;
+                    if (usbRxBufferLength - 1 == query.length)
+                    {
+                        memcpy(query.data, usbRxBuffer, usbRxBufferLength - 1);
+                        USB_WriteLine(STRING_SENDING_QUERY, sizeof(STRING_SENDING_QUERY));
+                        nextState = STATE_SEND_QUERY;
+                    }
+                    else
+                    {
+                        USB_WriteLine(STRING_INVALID, sizeof(STRING_INVALID));
+                        USB_WriteLine(STRING_QUERY_DATA, sizeof(STRING_QUERY_DATA));
+                        nextState = STATE_GET_QUERY_DATA;
+                    }
                 }
                 else
-                {
+                {;
                     nextState = STATE_GET_QUERY_DATA;
                 }
                 break;
                 case STATE_SEND_QUERY:
                 if (SPI_TxReady())
                 {
+                    SPI_CS_Write(0);
                     SPIM_WriteTxData(KSPI_START_BYTE);
                     SPIM_WriteTxData((uint8_t)query.queryCode);
                     SPIM_WriteTxData((uint8_t)query.querySubcode);
                     SPIM_WriteTxData(query.length);
                     SPIM_PutArray(query.data, query.length);
 
-                    USB_Write(STRING_TX, sizeof(STRING_TX));
+                    USB_WriteLine(STRING_TX, sizeof(STRING_TX));
                     
                     USB_WriteHexChar(KSPI_START_BYTE);
                     USB_WriteHexChar((uint8_t)query.queryCode);
@@ -189,9 +205,9 @@ int main()
                     {
                         USB_WriteHexChar(query.data[i]);
                     }
-                    USB_Write(STRING_NEWLINE, sizeof(STRING_NEWLINE));
+                    USB_WriteLine(NULL, 0);
 
-                    USB_Write(STRING_RX, sizeof(STRING_RX));
+                    USB_WriteLine(STRING_RX, sizeof(STRING_RX));
 
                     while (!SPI_TxReady());
 
@@ -202,9 +218,7 @@ int main()
                         USB_WriteHexChar(byte);
                     }
 
-                    USB_Write(STRING_NEWLINE, sizeof(STRING_NEWLINE));
-
-                    USB_Write(STRING_RECEIVE_WAIT, sizeof(STRING_RECEIVE_WAIT));
+                    USB_WriteLine(NULL, 0);
 
                     nextState = STATE_RECV_START;
                 }
@@ -215,27 +229,30 @@ int main()
                 break;
                 case STATE_RECV_START:
                 {
+                    USB_WriteLine(STRING_RECEIVE_WAIT, sizeof(STRING_RECEIVE_WAIT));
                     SPIM_ClearFIFO();
                     SPIM_WriteByte(SPI_FILL_BYTE);
 
-                    USB_Write(STRING_TX, sizeof(STRING_TX));
+                    USB_WriteLine(STRING_TX, sizeof(STRING_TX));
                     USB_WriteHexChar(SPI_FILL_BYTE);
+                    USB_WriteLine(NULL, 0);
 
                     while (!SPI_TxReady());
 
                     uint8_t byte = SPIM_ReadRxData();
 
-                    USB_Write(STRING_RX, sizeof(STRING_RX));
+                    USB_WriteLine(STRING_RX, sizeof(STRING_RX));
                     USB_WriteHexChar(byte);
-                    USB_Write(STRING_NEWLINE, sizeof(STRING_NEWLINE));
+                    USB_WriteLine(NULL, 0);
 
                     if (byte == KSPI_START_BYTE)
                     {
-                        USB_Write(STRING_RECEIVE_HEADER, sizeof(STRING_RECEIVE_HEADER));
+                        USB_WriteLine(STRING_RECEIVE_HEADER, sizeof(STRING_RECEIVE_HEADER));
                         nextState = STATE_RECV_HEADER;
                     }
                     else
                     {
+                        CyDelay(1000);
                         nextState = STATE_RECV_START;
                     }
                 }
@@ -245,50 +262,51 @@ int main()
                     uint8_t buffer[2] = { SPI_FILL_BYTE, SPI_FILL_BYTE };
                     SPIM_PutArray(buffer, 2);
 
-                    USB_Write(STRING_TX, sizeof(STRING_TX));
+                    USB_WriteLine(STRING_TX, sizeof(STRING_TX));
                     USB_WriteHexChar(SPI_FILL_BYTE);
                     USB_WriteHexChar(SPI_FILL_BYTE);
-                    USB_Write(STRING_NEWLINE, sizeof(STRING_NEWLINE));
+                    USB_WriteLine(NULL, 0);
 
                     while (!SPI_TxReady());
 
                     response.responseCode = (KSPI_ResponseCode_t)SPIM_ReadRxData();
                     response.length = SPIM_ReadRxData();
 
-                    USB_Write(STRING_RX, sizeof(STRING_RX));
+                    USB_WriteLine(STRING_RX, sizeof(STRING_RX));
                     USB_WriteHexChar((uint8_t)response.responseCode);
                     USB_WriteHexChar(response.length);
-                    USB_Write(STRING_NEWLINE, sizeof(STRING_NEWLINE));
+                    USB_WriteLine(NULL, 0);
 
                     if (response.length > 0)
                     {
-                        USB_Write(STRING_RECEIVE_DATA, sizeof(STRING_RECEIVE_DATA));
+                        USB_WriteLine(STRING_RECEIVE_DATA, sizeof(STRING_RECEIVE_DATA));
                         nextState = STATE_RECV_DATA;
                     }
                     else
                     {
+                        SPI_CS_Write(1);
                         nextState = STATE_IDLE;
                     }
                 }
                 break;
                 case STATE_RECV_DATA:
                 {
-                    USB_Write(STRING_RECEIVE_DATA, sizeof(STRING_RECEIVE_DATA));
+                    USB_WriteLine(STRING_RECEIVE_DATA, sizeof(STRING_RECEIVE_DATA));
 
                     uint8_t buffer[KSPI_DATA_MAX_SIZE];
                     memset(buffer, SPI_FILL_BYTE, response.length);
                     SPIM_PutArray(buffer, response.length);
 
-                    USB_Write(STRING_TX, sizeof(STRING_TX));
+                    USB_WriteLine(STRING_TX, sizeof(STRING_TX));
                     for (uint8_t i = 0; i < response.length; i += 1)
                     {
                         USB_WriteHexChar(SPI_FILL_BYTE);
                     }
-                    USB_Write(STRING_NEWLINE, sizeof(STRING_NEWLINE));
+                    USB_WriteLine(NULL, 0);
 
                     while (!SPI_TxReady());
 
-                    USB_Write(STRING_RX, sizeof(STRING_RX));
+                    USB_WriteLine(STRING_RX, sizeof(STRING_RX));
 
                     uint8_t byte;
                     while(SPIM_GetRxBufferSize() > 0)
@@ -296,8 +314,8 @@ int main()
                         byte = SPIM_ReadRxData();
                         USB_WriteHexChar(byte);
                     }
-                    USB_Write(STRING_NEWLINE, sizeof(STRING_NEWLINE));
-                    
+                    USB_WriteLine(NULL, 0);
+                    SPI_CS_Write(1);
                     nextState = STATE_IDLE;
                 }
                 break;
