@@ -38,15 +38,15 @@ static State_t state = STATE_IDLE;
 
 static uint8_t queryData[KSPI_DATA_MAX_SIZE];
 static KSPI_Query_t query = {
-    .queryCode = KSPI_QUERYCODE_TODO,
-    .querySubcode = KSPI_QUERYSUBCODE_TODO,
+    .queryCode = (KSPI_QueryCode_t)0,
+    .querySubcode = (KSPI_QuerySubcode_t)0,
     .length = 0,
     .data = queryData
 };
 
 static uint8_t responseData[KSPI_DATA_MAX_SIZE];
 static KSPI_Response_t response = {
-    .responseCode = KSPI_RESPONSECODE_TODO,
+    .responseCode = (KSPI_ResponseCode_t)0,
     .length = 0,
     .data = responseData
 };
@@ -61,6 +61,7 @@ int main()
 
     /* Start USBFS operation with 5-V operation. */
     USBUART_Start(USB_DEVICE, USBUART_3V_OPERATION);
+    USBUART_SetPowerStatus(USBUART_DEVICE_STATUS_SELF_POWERED);
     SPIM_Start();
     
     for(;;)
@@ -71,6 +72,7 @@ int main()
         }
         else
         {
+            usbRxBufferLength = 0;
             USB_ReadLine(usbRxBuffer, &usbRxBufferLength);
             State_t nextState = STATE_IDLE;
             
@@ -92,7 +94,7 @@ int main()
                 {
                     int queryCode;
                     str2int_errno result = str2int(&queryCode, (char*)usbRxBuffer, 10);
-                    if (result == STR2INT_SUCCESS && queryCode == 0)
+                    if (result == STR2INT_SUCCESS)
                     {
                         query.queryCode = (KSPI_QueryCode_t)queryCode;
                         USB_WriteLine(STRING_QUERY_SUBCODE, sizeof(STRING_QUERY_SUBCODE));
@@ -114,7 +116,7 @@ int main()
                 {
                     int querySubcode;
                     str2int_errno result = str2int(&querySubcode, (char*)usbRxBuffer, 10);
-                    if (result == STR2INT_SUCCESS && querySubcode == 0)
+                    if (result == STR2INT_SUCCESS)
                     {
                         query.querySubcode = (KSPI_QuerySubcode_t)querySubcode;
                         USB_WriteLine(STRING_QUERY_LENGTH, sizeof(STRING_QUERY_LENGTH));

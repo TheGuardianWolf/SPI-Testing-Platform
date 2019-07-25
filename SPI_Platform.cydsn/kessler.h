@@ -16,17 +16,11 @@
 #define KSPI_RESPONSE_HEADER_SIZE (2)
 #define KSPI_DATA_MAX_SIZE (255)
 
-typedef enum {
-    KSPI_RESPONSECODE_TODO = 0
-} KSPI_ResponseCode_t;
+typedef uint8_t KSPI_ResponseCode_t;
 
-typedef enum {
-    KSPI_QUERYCODE_TODO = 0
-} KSPI_QueryCode_t;
+typedef uint8_t KSPI_QueryCode_t;
 
-typedef enum {
-    KSPI_QUERYSUBCODE_TODO = 0
-} KSPI_QuerySubcode_t;
+typedef uint8_t KSPI_QuerySubcode_t;
 
 typedef struct {
     KSPI_QueryCode_t queryCode;
