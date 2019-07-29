@@ -10,3 +10,4 @@
 #define STRING_RECEIVE_HEADER "Getting header..."
 #define STRING_RECEIVE_DATA "Getting data..."
 #define STRING_INVALID "Invalid entry"
+#define STRING_OVERFLOW "Entry is over the length limit"

@@ -53,11 +53,12 @@ void USB_Read(char* data, uint16_t* dataLength)
     *dataLength = 0;
 }
 
-void USB_ReadLine(char* data, uint16_t* dataLength)
+bool USB_ReadLine(char* data, uint16_t* dataLength)
 {
     char buffer[USB_BUFFER_SIZE];
     uint16_t bufferLength;
     uint16_t trimLength;
+    uint16_t dataLengthMax = *dataLength;
     bool active = false;
     *dataLength = 0;
     
@@ -68,6 +69,12 @@ void USB_ReadLine(char* data, uint16_t* dataLength)
         USB_Read(buffer, &bufferLength);
         if (bufferLength > 0)
         {
+            if (bufferLength + *dataLength > dataLengthMax)
+            {
+                *dataLength = 0;
+                return false;
+            }
+            
             active = true;
             trimLength = strcspn(buffer, "\r\n") + 1;
             if (trimLength < bufferLength)
@@ -87,6 +94,8 @@ void USB_ReadLine(char* data, uint16_t* dataLength)
         }
     } 
     while(active);
+    
+    return true;
 }
 
 bool USB_CanWrite()
@@ -101,28 +110,37 @@ void USB_Write(const char* data, uint16_t dataLength)
     {
         if (0u != dataLength)
         {
-            /* Wait until component is ready to send data to host. */
-            while (0u == USBUART_CDCIsReady())
+            uint16_t iterations = dataLength / USB_BUFFER_SIZE;
+            
+            while (iterations > 0)
+            {
+                /* Wait until component is ready to send data to host. */
+                while (!USBUART_CDCIsReady())
+                {
+                }
+
+                /* Send data back to host. */
+                USBUART_PutData(((uint8_t*)data) + iterations * USB_BUFFER_SIZE, USB_BUFFER_SIZE);                
+                iterations -= 1;
+            }
+            
+            uint16_t remainingBytes = dataLength - iterations * USB_BUFFER_SIZE;
+            while (!USBUART_CDCIsReady())
             {
             }
-
-            /* Send data back to host. */
-            USBUART_PutData((uint8_t*)data, dataLength - 1);
-
             /* If the last sent packet is exactly the maximum packet 
             *  size, it is followed by a zero-length packet to assure
             *  that the end of the segment is properly identified by 
             *  the terminal.
             */
-            if (USB_BUFFER_SIZE == dataLength)
+            if (remainingBytes == 0)
             {
-                /* Wait until component is ready to send data to PC. */
-                while (0u == USBUART_CDCIsReady())
-                {
-                }
-
                 /* Send zero-length packet to PC. */
                 USBUART_PutData(NULL, 0u);
+            }
+            else
+            {
+                USBUART_PutData(((uint8_t*)data) + iterations * USB_BUFFER_SIZE, remainingBytes);
             }
         }
     }
@@ -134,7 +152,7 @@ void USB_WriteLine(const char* data, uint16_t dataLength)
     {
         USB_Write(data, dataLength);
     }
-    USB_Write(STRING_NEWLINE, sizeof(STRING_NEWLINE));
+    USB_Write(STRING_NEWLINE, sizeof(STRING_NEWLINE) - 1);
 }
 
 // void USB_WriteConst(const uint8_t * data, uint16_t dataLength)

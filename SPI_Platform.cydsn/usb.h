@@ -11,7 +11,7 @@ bool USB_InitHost();
 
 void USB_Read(char* data, uint16_t* dataLength);
 
-void USB_ReadLine(char* data, uint16_t* dataLength);
+bool USB_ReadLine(char* data, uint16_t* dataLength);
 
 bool USB_CanWrite();
 
